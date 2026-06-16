@@ -10,9 +10,11 @@ import enum
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import UUID, Boolean, DateTime, Float, Integer, Text
+from sqlalchemy import UUID, Boolean, DateTime, Float, Integer, MetaData, Text
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+from shared.config import settings
 
 
 class RecordingStatus(str, enum.Enum):
@@ -25,7 +27,7 @@ class RecordingStatus(str, enum.Enum):
 
 
 class Base(DeclarativeBase):
-    pass
+    metadata = MetaData(schema=settings.db_schema or None)
 
 
 class Device(Base):
