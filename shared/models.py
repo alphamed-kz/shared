@@ -72,7 +72,14 @@ class Recording(Base):
     )
 
     status: Mapped[RecordingStatus] = mapped_column(
-        SAEnum(RecordingStatus), nullable=False, default=RecordingStatus.SAVED, index=True
+        SAEnum(
+            RecordingStatus,
+            name="recordingstatus",
+            schema=settings.db_schema or None,
+        ),
+        nullable=False,
+        default=RecordingStatus.SAVED,
+        index=True,
     )
     # Set when a worker claims the row; reaper resets rows where locked_until < NOW()
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
