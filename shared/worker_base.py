@@ -16,6 +16,12 @@ import logging
 import signal
 import uuid
 from abc import ABC, abstractmethod
+from datetime import datetime, timedelta, timezone
+
+from sqlalchemy import select
+
+from shared.db import AsyncSessionLocal
+from shared.models import Recording
 
 logger = logging.getLogger(__name__)
 
@@ -82,18 +88,60 @@ class AbstractWorker(ABC):
     async def _claim_next(self) -> uuid.UUID | None:
         """Atomically claim the oldest unclaimed row for this worker's target status.
 
-        TODO Task 5: implement with SELECT ... FOR UPDATE SKIP LOCKED using AsyncSessionLocal.
         Returns the row id if claimed, None if the queue is empty.
         """
-        return None  # placeholder
+        async with AsyncSessionLocal() as session:
+            async with session.begin():
+                result = await session.execute(
+                    select(Recording)
+                    .where(
+                        Recording.status == self.target_status(),
+                        (
+                            Recording.locked_until.is_(None)
+                            | (Recording.locked_until < datetime.now(timezone.utc))
+                        ),
+                    )
+                    .order_by(Recording.recorded_at.asc())
+                    .limit(1)
+                    .with_for_update(skip_locked=True)
+                )
+                recording = result.scalar_one_or_none()
+                if recording is None:
+                    return None
+
+                recording.status = self.in_progress_status()
+                recording.locked_until = datetime.now(timezone.utc) + timedelta(
+                    minutes=self.lock_minutes()
+                )
+                session.add(recording)
+                logger.info(
+                    "Claimed recording %s: %s -> %s",
+                    recording.id,
+                    self.target_status(),
+                    self.in_progress_status(),
+                )
+                return recording.id
 
     async def _run_process(self, row_id: uuid.UUID) -> None:
         """Call process(), update status on success, handle failure.
 
-        TODO Task 5: wrap process() call, catch exceptions, update error_message,
-        let reaper handle retry logic via locked_until expiry.
+        The concrete process() implementation is responsible for setting the
+        success status. On failure, leave the in-progress status and lock in
+        place so the reaper/lock expiry policy can retry or fail the row.
         """
-        ...  # placeholder
+        try:
+            await self.process(row_id)
+        except Exception as exc:
+            async with AsyncSessionLocal() as session:
+                recording = await session.get(Recording, row_id)
+                if recording is not None:
+                    recording.error_message = str(exc)
+                    session.add(recording)
+                    await session.commit()
+            logger.exception("Processing recording %s failed", row_id)
+            return
+
+        logger.info("Processed recording %s", row_id)
 
     def _install_signal_handlers(self) -> None:
         loop = asyncio.get_running_loop()
