@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
+from uuid import uuid4
 
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from shared.config import settings
 
@@ -16,9 +18,11 @@ def _quote_identifier(value: str) -> str:
 engine = create_async_engine(
     settings.database_url,
     echo=settings.debug,
-    pool_size=5,
-    max_overflow=10,
-    connect_args={"prepared_statement_cache_size": 0},
+    poolclass=NullPool,
+    connect_args={
+        "prepared_statement_cache_size": 0,
+        "prepared_statement_name_func": lambda: f"__asyncpg_{uuid4()}__",
+    },
 )
 
 
