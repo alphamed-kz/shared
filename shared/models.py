@@ -11,7 +11,6 @@ import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import UUID, Boolean, DateTime, Float, Integer, MetaData, Text
-from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from shared.config import settings
@@ -71,12 +70,8 @@ class Recording(Base):
         default=lambda: datetime.now(timezone.utc),
     )
 
-    status: Mapped[RecordingStatus] = mapped_column(
-        SAEnum(
-            RecordingStatus,
-            name="recordingstatus",
-            schema=settings.db_schema or None,
-        ),
+    status: Mapped[str] = mapped_column(
+        Text,
         nullable=False,
         default=RecordingStatus.SAVED,
         index=True,
