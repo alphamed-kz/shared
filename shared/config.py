@@ -41,6 +41,12 @@ def _normalize_asyncpg_query(value: str) -> str:
     )
 
 
+def _remove_prefix(value: str, prefix: str) -> str:
+    if value.startswith(prefix):
+        return value[len(prefix) :]
+    return value
+
+
 class SharedSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -53,9 +59,9 @@ class SharedSettings(BaseSettings):
     def normalize_database_url(cls, value: str) -> str:
         """Accept common provider Postgres URLs and normalize to async SQLAlchemy."""
         if value.startswith("postgres://"):
-            value = "postgresql+asyncpg://" + value.removeprefix("postgres://")
+            value = "postgresql+asyncpg://" + _remove_prefix(value, "postgres://")
         elif value.startswith("postgresql://"):
-            value = "postgresql+asyncpg://" + value.removeprefix("postgresql://")
+            value = "postgresql+asyncpg://" + _remove_prefix(value, "postgresql://")
         return _normalize_asyncpg_query(value)
 
 
